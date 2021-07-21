@@ -6,8 +6,9 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
-import javax.swing.JComboBox;
+import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -15,8 +16,10 @@ import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 public class TextEditor extends JPanel
@@ -65,7 +68,7 @@ public class TextEditor extends JPanel
 		this.cmplops.put("c","gcc -O3 -c");
 		this.cmplops.put("cpp","g++ -O3 -std=c++20 -c");
 		this.cmplops.put("cc","g++ -O3 -std=c++20 -c");
-		this.cmplops.put("fortran","gfortran -O3 -c");
+		this.cmplops.put("f95","gfortran -O3 -c");
 		this.cmplops.put("cs","csc -optimize");
 		this.cmplops.put("java","javac");
 		try
@@ -214,6 +217,9 @@ public class TextEditor extends JPanel
 			String extension="";
 			if(period>0)
 				extension=fname.substring(period+1);
+			System.out.println("compiling " + f.getAbsolutePath());
+			System.out.println(extension);
+			System.out.println(this.cmplops);
 			if(this.cmplops.containsKey(extension))
 			{
 				try
@@ -306,18 +312,78 @@ public class TextEditor extends JPanel
 			frame.dispose();
 		}
 	}
+	@SuppressWarnings("unchecked")
 	public void editCompilerOptions()
 	{
-		JComboBox<String>menu=new JComboBox<>(this.cmplops.keySet().toArray(new String[this.cmplops.size()]));
+		String[]extensions=this.cmplops.keySet().toArray(new String[this.cmplops.size()]);
 		JPanel panel=new JPanel();
-		panel.add(new JLabel("File Extension"));
-		panel.add(menu);
+		JScrollPane sp = new JScrollPane();
+		String ext = null;
+		//panel.add(new JLabel("File Extension"));
+		sp.setSize(1024,576);
+		sp.setPreferredSize(sp.getSize());
+		ArrayList<JTextField>extensionTextFields=new ArrayList<>();
+		ArrayList<JTextField>commandTextFields=new ArrayList<>();
+		JTextField field=null;
+		int height=0;
+		for(int i=0;i<extensions.length;i++)
+		{
+			ext=extensions[i];
+			field = new JTextField(ext,8);
+			field.setLocation(0,height);
+			extensionTextFields.add(field);
+			panel.add(field);
+			field = new JTextField(this.cmplops.get(ext), 32);
+			commandTextFields.add(field);
+			panel.add(field);
+			height+=32;
+		}
+		JButton add=new JButton("Add");
+		JButton save=new JButton("Save");
+		/*add.addActionListener
+		(
+			(e)->
+			{
+				extensionTextFields.add(new JTextField(8));
+				panel.add(extensionTextFields.get(extensionTextFields.size()-1));
+				commandTextFields.add(new JTextField(32));
+				panel.add(commandTextFields.get(commandTextFields.size()-1));
+			}
+		);*/
+		save.addActionListener
+		(
+			(evt)->
+			{
+				for(int i=0;i<extensionTextFields.size();i++)
+				{
+					this.cmplops.put(extensionTextFields.get(i).getText(),commandTextFields.get(i).getText());
+				}
+				try
+				{
+					File f=new File(".cpte");
+					JSONObject obj=new JSONObject();
+					obj.putAll(this.cmplops);
+					JSONObject cpte=new JSONObject();
+					cpte.put("compile",obj);
+					FileOutputStream fout=new FileOutputStream(f);
+					fout.write(cpte.toJSONString().getBytes());
+					fout.close();
+				}
+				catch(Exception e)
+				{
+					e.printStackTrace();
+				}
+			}
+		);
+		panel.add(add);
+		panel.add(save);
+		panel.setSize(512,576);
+		panel.setPreferredSize(panel.getSize());
 		JFrame frame=new JFrame("Compiler Options");
 		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-		frame.setResizable(false);
-		frame.setLocationRelativeTo(null);
 		frame.add(panel);
 		frame.pack();
+		frame.setLocationRelativeTo(null);
 		frame.setVisible(true);
 	}
 	public void openEventListener(ActionEvent e)
