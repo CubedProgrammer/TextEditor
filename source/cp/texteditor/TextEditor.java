@@ -2,6 +2,7 @@ package cp.texteditor;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
@@ -11,7 +12,6 @@ import java.util.HashMap;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -31,6 +31,7 @@ public class TextEditor extends JPanel
 	private JMenu filemenu;
 	private JMenu editmenu;
 	private JMenu compilem;
+	private JMenu linkm;
 	private JMenuItem save;
 	private JMenuItem saveall;
 	private JMenuItem open;
@@ -42,7 +43,11 @@ public class TextEditor extends JPanel
 	private JMenuItem compilemi;
 	private JMenuItem compileall;
 	private JMenuItem compileOptions;
+	private JMenuItem linkmi;
+	private JMenuItem compileAndLink;
+	private JMenuItem linkOptions;
 	private HashMap<String,String>cmplops;
+	private String linker;
 	@SuppressWarnings("unchecked")
 	public TextEditor()
 	{
@@ -53,6 +58,7 @@ public class TextEditor extends JPanel
 		this.filemenu=new JMenu("File");
 		this.editmenu=new JMenu("Edit");
 		this.compilem=new JMenu("Compile");
+		this.linkm=new JMenu("Link");
 		this.save=new JMenuItem("Save");
 		this.saveall=new JMenuItem("Save All");
 		this.open=new JMenuItem("Open");
@@ -64,6 +70,9 @@ public class TextEditor extends JPanel
 		this.compilemi=new JMenuItem("Compile Current");
 		this.compileall=new JMenuItem("Compile All");
 		this.compileOptions=new JMenuItem("Compile Options");
+		this.linkmi=new JMenuItem("Link");
+		this.compileAndLink=new JMenuItem("Compile and Link");
+		this.linkOptions=new JMenuItem("Link Options");
 		this.cmplops=new HashMap<String,String>();
 		this.cmplops.put("c","gcc -O3 -c");
 		this.cmplops.put("cpp","g++ -O3 -std=c++20 -c");
@@ -71,6 +80,7 @@ public class TextEditor extends JPanel
 		this.cmplops.put("f95","gfortran -O3 -c");
 		this.cmplops.put("cs","csc -optimize");
 		this.cmplops.put("java","javac");
+		this.linker="";
 		try
 		{
 			File f=new File(".cpte");
@@ -81,6 +91,7 @@ public class TextEditor extends JPanel
 				JSONObject obj=(JSONObject)new JSONParser().parse(reader);
 				reader.close();
 				this.cmplops.putAll((JSONObject)obj.get("compile"));
+				this.linker=obj.get("link").toString();
 			}
 			else
 			{
@@ -88,6 +99,7 @@ public class TextEditor extends JPanel
 				obj.putAll(this.cmplops);
 				JSONObject cpte=new JSONObject();
 				cpte.put("compile",obj);
+				cpte.put("link",this.linker);
 				FileOutputStream fout=new FileOutputStream(f);
 				fout.write(cpte.toJSONString().getBytes());
 				fout.close();
@@ -109,6 +121,9 @@ public class TextEditor extends JPanel
 		this.compilemi.addActionListener(this::compileEventListener);
 		this.compileall.addActionListener(this::compileallEventListener);
 		this.compileOptions.addActionListener(this::compileopEventListener);
+		this.linkmi.addActionListener(this::linkEventListener);
+		this.compileAndLink.addActionListener(this::compileAndLinkEventListener);
+		this.linkOptions.addActionListener(this::linkopEventListener);
 		this.filemenu.add(this.save);
 		this.filemenu.add(this.saveall);
 		this.filemenu.add(this.open);
@@ -120,9 +135,13 @@ public class TextEditor extends JPanel
 		this.compilem.add(this.compilemi);
 		this.compilem.add(this.compileall);
 		this.compilem.add(this.compileOptions);
+		this.linkm.add(this.linkmi);
+		this.linkm.add(this.compileAndLink);
+		this.linkm.add(this.linkOptions);
 		this.menubar.add(this.filemenu);
 		this.menubar.add(this.editmenu);
 		this.menubar.add(this.compilem);
+		this.menubar.add(this.linkm);
 		this.add(this.menubar);
 		this.add(this.editors);
 	}
@@ -217,9 +236,6 @@ public class TextEditor extends JPanel
 			String extension="";
 			if(period>0)
 				extension=fname.substring(period+1);
-			System.out.println("compiling " + f.getAbsolutePath());
-			System.out.println(extension);
-			System.out.println(this.cmplops);
 			if(this.cmplops.containsKey(extension))
 			{
 				try
@@ -386,6 +402,92 @@ public class TextEditor extends JPanel
 		frame.setLocationRelativeTo(null);
 		frame.setVisible(true);
 	}
+	public void link()
+	{
+		try
+		{
+			Process proc=Runtime.getRuntime().exec(this.linker);
+			InputStream perr=proc.getErrorStream();
+			proc.waitFor();
+			if(perr.available()>0)
+			{
+				byte[]b=new byte[perr.available()];
+				perr.read(b);
+				JTextArea area=new JTextArea(new String(b));
+				area.setEditable(false);
+				JPanel panel=new JPanel();
+				panel.add(area);
+				JFrame frame=new JFrame("Compiler Output");
+				frame.add(panel);
+				frame.pack();
+				frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+				frame.setLocationRelativeTo(null);
+				frame.setResizable(false);
+				frame.setVisible(true);
+			}
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+	@SuppressWarnings("unchecked")
+	public void editLinkOptions()
+	{
+		JPanel panel=new JPanel();
+		JButton save=new JButton("Save");
+		JTextField field=new JTextField(this.linker,80);
+		save.addActionListener
+		(
+			(evt)->
+			{
+				this.linker=field.getText();
+				File f=new File(".cpte");
+				JSONObject obj=new JSONObject();
+				obj.putAll(this.cmplops);
+				JSONObject cpte=new JSONObject();
+				cpte.put("compile",obj);
+				cpte.put("link",this.linker);
+				try
+				{
+					FileOutputStream fout=new FileOutputStream(f);
+					fout.write(cpte.toJSONString().getBytes());
+					fout.close();
+				}
+				catch(IOException e)
+				{
+					e.printStackTrace();
+				}
+			}
+		);
+		panel.add(field);
+		panel.add(save);
+		{
+			this.linker=field.getText();
+			File f=new File(".cpte");
+			JSONObject obj=new JSONObject();
+			obj.putAll(this.cmplops);
+			JSONObject cpte=new JSONObject();
+			cpte.put("compile",obj);
+			cpte.put("link",this.linker);
+			try
+			{
+				FileOutputStream fout=new FileOutputStream(f);
+				fout.write(cpte.toJSONString().getBytes());
+				fout.close();
+			}
+			catch(IOException e)
+			{
+				e.printStackTrace();
+			}
+		}
+		JFrame frame=new JFrame("Link Command");
+		frame.add(panel);
+		frame.pack();
+		frame.setLocationRelativeTo(null);
+		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		frame.setVisible(true);
+	}
 	public void openEventListener(ActionEvent e)
 	{
 		this.openFiles();
@@ -430,6 +532,19 @@ public class TextEditor extends JPanel
 	public void compileopEventListener(ActionEvent e)
 	{
 		this.editCompilerOptions();
+	}
+	public void linkEventListener(ActionEvent e)
+	{
+		this.link();
+	}
+	public void compileAndLinkEventListener(ActionEvent e)
+	{
+		this.compileAll();
+		this.link();
+	}
+	public void linkopEventListener(ActionEvent e)
+	{
+		this.editLinkOptions();
 	}
 	public static final void main(String[]args)
 	{
