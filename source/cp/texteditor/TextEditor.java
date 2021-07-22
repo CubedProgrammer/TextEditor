@@ -1,12 +1,14 @@
 package cp.texteditor;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import javax.swing.JButton;
@@ -32,6 +34,7 @@ public class TextEditor extends JPanel
 	private JMenu editmenu;
 	private JMenu compilem;
 	private JMenu linkm;
+	private JMenu runm;
 	private JMenuItem save;
 	private JMenuItem saveall;
 	private JMenuItem open;
@@ -46,8 +49,12 @@ public class TextEditor extends JPanel
 	private JMenuItem linkmi;
 	private JMenuItem compileAndLink;
 	private JMenuItem linkOptions;
+	private JMenuItem runmi;
+	private JMenuItem compileLinkRun;
+	private JMenuItem runOptions;
 	private HashMap<String,String>cmplops;
 	private String linker;
+	private String runcmd;
 	@SuppressWarnings("unchecked")
 	public TextEditor()
 	{
@@ -59,6 +66,7 @@ public class TextEditor extends JPanel
 		this.editmenu=new JMenu("Edit");
 		this.compilem=new JMenu("Compile");
 		this.linkm=new JMenu("Link");
+		this.runm=new JMenu("Run");
 		this.save=new JMenuItem("Save");
 		this.saveall=new JMenuItem("Save All");
 		this.open=new JMenuItem("Open");
@@ -73,6 +81,9 @@ public class TextEditor extends JPanel
 		this.linkmi=new JMenuItem("Link");
 		this.compileAndLink=new JMenuItem("Compile and Link");
 		this.linkOptions=new JMenuItem("Link Options");
+		this.runmi=new JMenuItem("Run");
+		this.compileLinkRun=new JMenuItem("Compile, Link, and Run");
+		this.runOptions=new JMenuItem("Run Options");
 		this.cmplops=new HashMap<String,String>();
 		this.cmplops.put("c","gcc -O3 -c");
 		this.cmplops.put("cpp","g++ -O3 -std=c++20 -c");
@@ -81,6 +92,7 @@ public class TextEditor extends JPanel
 		this.cmplops.put("cs","csc -optimize");
 		this.cmplops.put("java","javac");
 		this.linker="";
+		this.runcmd="./a.out";
 		try
 		{
 			File f=new File(".cpte");
@@ -92,6 +104,7 @@ public class TextEditor extends JPanel
 				reader.close();
 				this.cmplops.putAll((JSONObject)obj.get("compile"));
 				this.linker=obj.get("link").toString();
+				this.runcmd=obj.get("run").toString();
 			}
 			else
 			{
@@ -100,6 +113,7 @@ public class TextEditor extends JPanel
 				JSONObject cpte=new JSONObject();
 				cpte.put("compile",obj);
 				cpte.put("link",this.linker);
+				cpte.put("run",this.runcmd);
 				FileOutputStream fout=new FileOutputStream(f);
 				fout.write(cpte.toJSONString().getBytes());
 				fout.close();
@@ -124,6 +138,9 @@ public class TextEditor extends JPanel
 		this.linkmi.addActionListener(this::linkEventListener);
 		this.compileAndLink.addActionListener(this::compileAndLinkEventListener);
 		this.linkOptions.addActionListener(this::linkopEventListener);
+		this.runmi.addActionListener(this::runEventListener);
+		this.compileLinkRun.addActionListener(this::compileLinkRunEventListener);
+		this.runOptions.addActionListener(this::runopEventListener);
 		this.filemenu.add(this.save);
 		this.filemenu.add(this.saveall);
 		this.filemenu.add(this.open);
@@ -138,10 +155,14 @@ public class TextEditor extends JPanel
 		this.linkm.add(this.linkmi);
 		this.linkm.add(this.compileAndLink);
 		this.linkm.add(this.linkOptions);
+		this.runm.add(this.runmi);
+		this.runm.add(this.compileLinkRun);
+		this.runm.add(this.runOptions);
 		this.menubar.add(this.filemenu);
 		this.menubar.add(this.editmenu);
 		this.menubar.add(this.compilem);
 		this.menubar.add(this.linkm);
+		this.menubar.add(this.runm);
 		this.add(this.menubar);
 		this.add(this.editors);
 	}
@@ -417,7 +438,7 @@ public class TextEditor extends JPanel
 				area.setEditable(false);
 				JPanel panel=new JPanel();
 				panel.add(area);
-				JFrame frame=new JFrame("Compiler Output");
+				JFrame frame=new JFrame("Linker Output");
 				frame.add(panel);
 				frame.pack();
 				frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -448,6 +469,7 @@ public class TextEditor extends JPanel
 				JSONObject cpte=new JSONObject();
 				cpte.put("compile",obj);
 				cpte.put("link",this.linker);
+				cpte.put("run",this.runcmd);
 				try
 				{
 					FileOutputStream fout=new FileOutputStream(f);
@@ -482,6 +504,86 @@ public class TextEditor extends JPanel
 			}
 		}
 		JFrame frame=new JFrame("Link Command");
+		frame.add(panel);
+		frame.pack();
+		frame.setLocationRelativeTo(null);
+		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		frame.setVisible(true);
+	}
+	public void run()
+	{
+		try
+		{
+			JFrame frame=new JFrame(this.runcmd);
+			JPanel panel=new JPanel();
+			JTextArea console=new JTextArea(40,80);
+			JScrollPane scrolls=new JScrollPane(console);
+			panel.add(scrolls);
+			frame.add(panel);
+			frame.pack();
+			frame.setLocationRelativeTo(null);
+			frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+			frame.setVisible(true);
+			Process proc=Runtime.getRuntime().exec(this.runcmd);
+			OutputStream pin=proc.getOutputStream();
+			InputStream pout=proc.getInputStream();
+			InputStream perr=proc.getErrorStream();
+			BufferedReader reader=new BufferedReader(new InputStreamReader(pout));
+			String ln=null;
+			while(proc.isAlive())
+			{
+				ln=reader.readLine();
+				console.append(ln+System.lineSeparator());
+			}
+			ln=reader.readLine();
+			while(ln!=null)
+			{
+				console.append(ln+System.lineSeparator());
+				ln=reader.readLine();
+			}
+			pin.close();
+			reader.close();
+			perr.close();
+			console.append("Process exited with value "+proc.exitValue()+".");
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+	@SuppressWarnings("unchecked")
+	public void editRunOptions()
+	{
+		JPanel panel=new JPanel();
+		JButton save=new JButton("Save");
+		JTextField field=new JTextField(this.runcmd,80);
+		save.addActionListener
+		(
+			(evt)->
+			{
+				this.runcmd=field.getText();
+				File f=new File(".cpte");
+				JSONObject obj=new JSONObject();
+				obj.putAll(this.cmplops);
+				JSONObject cpte=new JSONObject();
+				cpte.put("compile",obj);
+				cpte.put("link",this.linker);
+				cpte.put("run",this.runcmd);
+				try
+				{
+					FileOutputStream fout=new FileOutputStream(f);
+					fout.write(cpte.toJSONString().getBytes());
+					fout.close();
+				}
+				catch(IOException e)
+				{
+					e.printStackTrace();
+				}
+			}
+		);
+		panel.add(field);
+		panel.add(save);
+		JFrame frame=new JFrame("Run Command");
 		frame.add(panel);
 		frame.pack();
 		frame.setLocationRelativeTo(null);
@@ -545,6 +647,20 @@ public class TextEditor extends JPanel
 	public void linkopEventListener(ActionEvent e)
 	{
 		this.editLinkOptions();
+	}
+	public void runEventListener(ActionEvent e)
+	{
+		this.run();
+	}
+	public void compileLinkRunEventListener(ActionEvent e)
+	{
+		this.compileAll();
+		this.link();
+		this.run();
+	}
+	public void runopEventListener(ActionEvent e)
+	{
+		this.editRunOptions();
 	}
 	public static final void main(String[]args)
 	{
