@@ -24,6 +24,7 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import cp.texteditor.event.EnterHandler;
 public class TextEditor extends JPanel
 {
 	private static final long serialVersionUID=-2941721218264436063L;
@@ -514,37 +515,50 @@ public class TextEditor extends JPanel
 	{
 		try
 		{
-			JFrame frame=new JFrame(this.runcmd);
+			JFrame frame=new JFrame(this.runcmd+" 1");
+			JFrame frame2=new JFrame(this.runcmd+" 0");
 			JPanel panel=new JPanel();
-			JTextArea console=new JTextArea(40,80);
-			JScrollPane scrolls=new JScrollPane(console);
-			panel.add(scrolls);
+			JPanel panel2=new JPanel();
+			JTextArea stdout=new JTextArea(40,80);
+			JTextArea stdin=new JTextArea(40,80);
+			JScrollPane scout=new JScrollPane(stdout);
+			JScrollPane scin=new JScrollPane(stdin);
+			stdin.setEditable(true);
+			stdout.setEditable(false);
+			panel.add(scout);
 			frame.add(panel);
 			frame.pack();
 			frame.setLocationRelativeTo(null);
 			frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 			frame.setVisible(true);
+			panel2.add(scin);
+			frame2.add(panel2);
+			frame2.pack();
+			frame2.setLocationRelativeTo(null);
+			frame2.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+			frame2.setVisible(true);
 			Process proc=Runtime.getRuntime().exec(this.runcmd);
 			OutputStream pin=proc.getOutputStream();
 			InputStream pout=proc.getInputStream();
 			InputStream perr=proc.getErrorStream();
+			stdin.addKeyListener(new EnterHandler(stdin,pin));
 			BufferedReader reader=new BufferedReader(new InputStreamReader(pout));
 			String ln=null;
 			while(proc.isAlive())
 			{
 				ln=reader.readLine();
-				console.append(ln+System.lineSeparator());
+				stdout.append(ln+System.lineSeparator());
 			}
 			ln=reader.readLine();
 			while(ln!=null)
 			{
-				console.append(ln+System.lineSeparator());
+				stdout.append(ln+System.lineSeparator());
 				ln=reader.readLine();
 			}
 			pin.close();
 			reader.close();
 			perr.close();
-			console.append("Process exited with value "+proc.exitValue()+".");
+			stdout.append("Process exited with value "+proc.exitValue()+".");
 		}
 		catch(Exception e)
 		{
